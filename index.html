@@ -1,0 +1,2385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--
+  ╔══════════════════════════════════════════════════════╗
+  ║  个人作品集 — 最终版                                  ║
+  ║  搜索 ✏️ 找到所有可以DIY修改的地方                    ║
+  ╚══════════════════════════════════════════════════════╝
+
+  页面结构：
+  · #page-home   首页 — 随机14个黑色开窗格子 + 倒T格子
+  · #page-work   Work — 行列式项目目录（点击跳转案例页）
+  · #page-case   案例详情 — 左侧TOC + 右侧滚动内容
+  · #page-art    Art 画廊
+  · #page-about  About 简介
+-->
+
+<!-- ✏️ 修改浏览器标签页标题 -->
+<title>CHEN HANGYUE · Design Engineer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,900;1,9..40,300;1,9..40,400;1,9..40,500;1,9..40,600;1,9..40,700;1,9..40,900&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════
+   全局变量 — ✏️ 在这里修改颜色和格子尺寸
+══════════════════════════════════════════ */
+:root {
+  --bg:        #f4f3ef;
+  --fg:        #111;
+  --muted:     #999;
+  --border:    rgba(0,0,0,.07);
+  --cell-bg:   #e5e3dc;   /* 空格子 */
+  --cell-dark: #111;      /* 黑色格子 */
+  --r:         7px;       /* 格子圆角 */
+
+  --cell: 92px;   /* ✏️ 格子大小 */
+  --gap:  2px;    /* ✏️ 格子间距 */
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg); color: var(--fg);
+  cursor: none; overflow-x: hidden;
+}
+a { text-decoration: none; color: inherit; }
+
+/* ══ 自定义光标 ══ */
+#cur {
+  position: fixed; width: 9px; height: 9px;
+  background: var(--fg); border-radius: 50%;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%,-50%);
+  transition: width .15s, height .15s, opacity .18s;
+  mix-blend-mode: multiply;
+}
+body.on-dark #cur { width: 30px; height: 30px; opacity: .12; }
+/* ✏️ 暗色作品页：光标反色显示（黑底上变亮，图片上自动反差，始终可见）*/
+body.case-dark #cur { background: #fff; mix-blend-mode: difference; opacity: 1 !important; }
+
+
+/* ═══════════════════════════════
+   导航栏
+═══════════════════════════════ */
+#nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 800;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 20px 36px;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: border-color .3s;
+}
+#nav.scrolled { border-color: var(--border); }
+
+/* ✏️ 左上角：名字和职位 */
+.nav-brand { cursor: none; line-height: 1; }
+.nav-name {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+}
+.nav-role {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  font-weight: 300; color: var(--muted);
+  letter-spacing: .08em; text-transform: uppercase; margin-top: 3px;
+}
+
+/* 中间导航链接 */
+.nav-mid {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 30px;
+}
+.nav-mid a {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); cursor: none;
+  border-bottom: 1px solid transparent;
+  transition: color .2s, border-color .2s;
+}
+.nav-mid a:hover, .nav-mid a.active { color: var(--fg); border-color: var(--fg); }
+
+/* ✏️ 右侧图标链接 */
+.nav-icons { display: flex; gap: 16px; align-items: center; }
+.nav-icons a { color: #bbb; cursor: none; display: flex; transition: color .2s; }
+.nav-icons a:hover { color: var(--fg); }
+.nav-icons svg { width: 15px; height: 15px; fill: currentColor; }
+
+
+/* ═══════════════════════════════════════
+   页面容器
+═══════════════════════════════════════ */
+.page {
+  display: none; min-height: 100vh;
+  padding-top: 68px;
+}
+.page.active { display: block; }
+
+@keyframes pgIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page.active { animation: pgIn .28s ease forwards; }
+
+/* ✏️ 滚动进入动效：渐显 + 上浮。仅在系统未要求"减少动效"时启用 */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    opacity: 0; transform: translateY(26px);
+    transition: opacity .7s cubic-bezier(.22,.61,.36,1),
+                transform .7s cubic-bezier(.22,.61,.36,1);
+    will-change: opacity, transform;
+  }
+  .reveal.in { opacity: 1; transform: none; }
+  /* 封面额外带一点缩放 */
+  .cs-cover.reveal, .cs-cover-block.reveal { transform: translateY(26px) scale(.985); }
+  .cs-cover.reveal.in, .cs-cover-block.reveal.in { transform: none; }
+}
+/* 减少动效时：任何 .reveal 都保持完全可见，绝不隐藏内容 */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal.in { opacity: 1 !important; transform: none !important; }
+}
+
+
+/* ═══════════════════════════════════════════════
+   首页 — HOME
+   布局：网格居中，气泡区在上，格子在下，hint在最底
+═══════════════════════════════════════════════ */
+#page-home {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+#page-home.active { display: flex; }
+
+/*
+  气泡层 — 所有气泡放在这里，位置相对于格子矩阵
+  气泡层在格子上方，不会被格子遮挡
+*/
+.bubble-layer {
+  position: relative;
+  width: calc(9 * var(--cell) + 8 * var(--gap)); /* 和格子等宽 */
+  height: 0; /* 不占高度，气泡向上延伸 */
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* 气泡：绝对定位在格子内部，向上弹出到格子上方 */
+.grid-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);  /* 格子顶部往上8px */
+  left: 0;
+  white-space: normal;                          /* 允许换行，长文字不再向右溢出 */
+  width: max-content;
+  max-width: calc(var(--cell) + var(--gap));    /* 最宽=一个格子，同行气泡绝不横向重叠 */
+  line-height: 1.35;
+  background: rgba(255,255,255,.92);
+  border-radius: 12px 12px 12px 4px;
+  padding: 8px 12px;
+  font-size: 11px; color: #444;
+  box-shadow: 0 4px 20px rgba(0,0,0,.1);
+  backdrop-filter: blur(6px);
+  opacity: 0; pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .25s ease, transform .25s ease;
+  z-index: 50;
+}
+.grid-bubble.show {
+  opacity: 1; transform: translateY(0);
+}
+/* 三角箭头朝下，指向格子 */
+.grid-bubble::before {
+  content: '';
+  position: absolute; left: 14px; bottom: -6px;
+  border: 6px solid transparent;
+  border-top-color: rgba(255,255,255,.92); border-bottom: 0;
+}
+
+/* ══ 格子网格 ══ */
+.grid-scene {
+  position: relative;
+  overflow: visible;  /* ← 加上这行 */
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(9, var(--cell));
+  grid-template-rows: repeat(5, var(--cell));
+  gap: var(--gap);
+  overflow: visible;
+}
+
+/*
+  每个格子三层结构（从下到上）：
+  1. .cell-bg    底层：空格背景（始终可见）
+  2. .cell-img   中层：彩色图片内容（开窗后露出）
+  3. .cell-door  顶层：黑色窗格（绕左边旋转 -80° 打开）
+*/
+.cell { position: relative; }
+
+/* 底层 */
+.cell-bg {
+  position: absolute; inset: 0;
+  border-radius: var(--r);
+  background: var(--cell-bg);
+}
+.cell-num {
+  position: absolute; top: 8px; left: 9px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; font-weight: 300; color: #c0bdb5; line-height: 1;
+}
+
+/* 中层：图片 */
+.cell-img {
+  position: absolute; inset: 0;
+  border-radius: var(--r); overflow: hidden;
+}
+.cell-img img {
+  /* ✏️ 人物图片：width/height 100%，object-fit cover */
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center bottom;
+}
+.cell-img .cell-emoji {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 48px;
+}
+
+/* 顶层：可旋转的黑色窗格 */
+.cell-door {
+  position: absolute; inset: 0;
+  border-radius: var(--r);
+  background: var(--cell-dark);
+  transform-origin: left center;
+  transform: rotateY(0deg);
+  transition: transform .55s cubic-bezier(.4,0,.2,1);
+  z-index: 2;
+  /* 侧面厚度阴影 */
+  box-shadow: inset -4px 0 8px rgba(0,0,0,.3);
+  /* 门本身的数字 */
+  display: flex; align-items: flex-start; padding: 8px 9px;
+}
+.cell-door-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; color: #333; font-weight: 300; line-height: 1;
+}
+
+/* 打开：旋转 -80°，产生透视开窗效果 */
+.cell.open .cell-door {
+  transform: perspective(900px) rotateY(-80deg);
+}
+
+/* 悬停提示：轻微预开 */
+.cell.dark:not(.open):hover .cell-door {
+  transform: perspective(900px) rotateY(-10deg);
+}
+
+/* 空格子（只有底层，没有门/图片层） */
+.cell.empty { pointer-events: none; }
+.cell.empty .cell-bg { background: var(--cell-bg); }
+
+/* 格子入场动画 */
+@keyframes cellIn {
+  from { opacity: 0; transform: scale(.75); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.cell { opacity: 0; animation: cellIn .3s ease forwards; }
+
+/* ══ 首页底部提示文字 ══ */
+.home-hint {
+  margin-top: 24px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: #c8c4bc;
+  animation: blink 3s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+
+/* ═══════════════════════════════════════════
+   Work 页 — 行列式目录
+═══════════════════════════════════════════ */
+#page-work { padding: 68px 60px 80px; }
+
+.work-header { padding-top: 48px; margin-bottom: 52px; }
+.work-label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 14px;
+}
+.work-title {
+  font-size: 38px; font-weight: 300;
+  letter-spacing: -.025em; line-height: 1.15;
+}
+
+/* 跟随鼠标的预览缩略图 */
+.w-thumb {
+  position: fixed; width: 260px; height: 180px;
+  border-radius: 16px; overflow: hidden;
+  pointer-events: none; z-index: 900;
+  opacity: 0; transform: scale(.9) rotate(-2deg);
+  transition: opacity .22s, transform .28s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 24px 64px rgba(0,0,0,.16);
+}
+.w-thumb.show { opacity: 1; transform: scale(1) rotate(0); }
+.w-thumb-inner {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 60px;
+}
+
+/* 目录列表 */
+.w-list { display: flex; flex-direction: column; }
+
+/*
+  ✏️ 作品行 — 如果需要添加更多作品：
+  在 HTML 里复制一整个 <div class="w-row"> 区块，
+  并在 JS 的 WORKS 数组里添加对应的详情数据
+*/
+.w-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 220px 100px 44px;
+  align-items: center; gap: 20px;
+  padding: 21px 16px;
+  border-top: 1px solid var(--border);
+  cursor: none; position: relative; overflow: hidden;
+  border-radius: 10px;
+  transition: padding-left .22s ease;
+}
+.w-row:last-child { border-bottom: 1px solid var(--border); }
+
+/* hover黑色填充 */
+.w-row::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--fg);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .28s ease;
+  border-radius: 10px; z-index: 0;
+}
+.w-row > * { position: relative; z-index: 1; }
+.w-row:hover { padding-left: 26px; }
+.w-row:hover::before { transform: scaleX(1); }
+.w-row:hover .w-num,
+.w-row:hover .w-name,
+.w-row:hover .w-tag,
+.w-row:hover .w-year,
+.w-row:hover .w-arr { color: #fff !important; }
+.w-row:hover .w-tag { border-color: rgba(255,255,255,.25); }
+.w-row:hover .w-arr { transform: translateX(3px) rotate(-45deg); }
+
+.w-num {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--muted); letter-spacing: .06em;
+}
+.w-name { font-size: 16px; font-weight: 400; letter-spacing: -.01em; }
+.w-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.w-tag {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .08em; text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 3px 9px; color: var(--muted);
+  transition: border-color .2s, color .2s;
+}
+.w-year {
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+}
+.w-arr {
+  font-size: 17px; color: #ccc; text-align: right;
+  transition: transform .2s, color .2s;
+}
+
+
+/* ═══════════════════════════════════════════
+   案例详情页 — CASE STUDY
+═══════════════════════════════════════════ */
+#page-case {
+  display: none; padding-top: 68px;
+}
+#page-case.active { display: block; animation: pgIn .28s ease forwards; }
+
+.cs-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: calc(100vh - 68px);
+}
+
+/* 左侧固定侧边栏 */
+.cs-sidebar {
+  position: sticky; top: 68px;
+  height: calc(100vh - 68px);
+  overflow-y: auto; padding: 40px 28px;
+  border-right: 1px solid var(--border);
+}
+.cs-back {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); cursor: none; margin-bottom: 28px;
+  transition: color .2s;
+}
+.cs-back:hover { color: var(--fg); }
+.cs-back svg { width: 12px; height: 12px; fill: currentColor; }
+.cs-case-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px;
+}
+.cs-case-name {
+  font-size: 13px; font-weight: 500; line-height: 1.3; margin-bottom: 28px;
+}
+.cs-toc { list-style: none; }
+.cs-toc li {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: #bbb; cursor: none;
+  padding: 8px 0 8px 14px; margin-left: -16px;
+  border-left: 2px solid transparent;
+  transition: color .2s, border-color .2s;
+}
+.cs-toc li.active-toc { color: var(--fg); border-color: var(--fg); }
+.cs-toc li:hover { color: #555; }
+
+/* 右侧内容 */
+.cs-content { 
+  padding: 44px 60px 80px; 
+  overflow-y: auto; 
+  height: calc(100vh - 68px);  /* ← 加这行，68px是导航栏高度 */
+}
+
+/* 案例 header */
+.cs-header { margin-bottom: 40px; }
+.cs-header-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 8px;
+}
+.cs-title { font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+.cs-tags { display: flex; gap: 8px; padding-top: 4px; }
+.cs-tag {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 4px 10px; color: var(--muted);
+}
+.cs-subtitle { font-size: 14px; color: #666; }
+
+/* 封面 */
+.cs-cover {
+  width: 100%; height: auto; border-radius: 12px;   /* ✏️ 完整显示封面，不裁切 */
+  object-fit: contain; display: block; margin-bottom: 48px;
+}
+.cs-cover-block {
+  width: 100%; height: 420px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 80px; margin-bottom: 48px;
+}
+
+/* 内容区段 */
+.cs-sec { margin-bottom: 56px; scroll-margin-top: 80px; }
+.cs-sec-label {
+  font-family: 'DM Mono', monospace; font-size: 9.5px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 14px;
+}
+.cs-sec-big {
+  font-size: 26px; font-weight: 400;
+  line-height: 1.25; letter-spacing: -.015em;
+  margin-bottom: 22px; max-width: 780px;
+}
+.cs-note {
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 24px; margin-bottom: 28px;
+}
+.cs-note-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.cs-note-text { font-size: 14px; line-height: 1.72; color: #555; }
+
+/* 元信息 */
+.cs-meta {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px; padding: 28px 0;
+  border-top: 1px solid var(--border); margin-bottom: 28px;
+}
+.cs-meta-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.cs-meta-value { font-size: 13.5px; line-height: 1.65; }
+
+/* 产品链接卡 */
+.cs-plink {
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; 
+  transition: background .2s; margin-top: 20px;
+}
+.cs-plink:hover { background: #f0efeb; }
+.cs-plink-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.cs-plink-name {
+  font-size: 20px; display: flex; align-items: center; gap: 10px;
+  font-weight: 700;        /* ← 加粗 */
+  font-style: italic;      /* ← 斜体 */
+}
+.cs-plink-arr { font-size: 26px; transition: transform .2s; }
+.cs-plink:hover .cs-plink-arr { transform: translate(3px,-3px); }
+
+/* 正文 & 图片 */
+.cs-body {
+  font-size: 14px; line-height: 1.85; color: #444;
+  max-width: 720px; margin-bottom: 24px;
+}
+.cs-img {
+  width: 100%; border-radius: 10px; display: block; margin-bottom: 28px;
+}
+.cs-img-ph {
+  width: 100%; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; color: #bbb;
+  background: #e8e6e0; margin-bottom: 28px;
+}
+
+
+/* ═══════════════════════════════════
+   Art 页
+═══════════════════════════════════ */
+#page-art { padding: 68px 60px 80px; }
+.pg-label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 14px; margin-top: 48px;
+}
+.pg-title {
+  font-size: 38px; font-weight: 300;
+  letter-spacing: -.025em; line-height: 1.15; margin-bottom: 48px;
+}
+.art-grid {
+  column-count: 3; column-gap: 12px;   /* ✏️ 瀑布流：图片按原比例完整显示，不裁切 */
+  width: 100%;
+}
+
+.art-cell {
+  break-inside: avoid; margin-bottom: 12px;
+  border-radius: 13px; overflow: hidden; display: block;
+  cursor: none; position: relative; background: #f4f3ef;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+}
+.art-cell:hover { transform: scale(.97); }
+.art-cell img { width: 100%; height: auto; display: block; }   /* 完整图，不裁切 */
+.art-cell-in {
+  width: 100%; aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px;
+}
+/* ✏️ Art 图片替换：把 emoji div 换成 <img src="路径" style="width:100%;height:100%;object-fit:cover"> */
+.art-lbl {
+  position: absolute; bottom: 9px; left: 9px;
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(0,0,0,.35); background: rgba(255,255,255,.5);
+  padding: 3px 8px; border-radius: 20px; backdrop-filter: blur(4px);
+}
+
+
+/* ═══════════════════════════════════
+   About 页
+═══════════════════════════════════ */
+
+/* 微信弹窗 */
+.wx-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(20,20,20,.55); backdrop-filter: blur(6px);
+  animation: wxFade .2s ease;
+}
+.wx-overlay.show { display: flex; }
+@keyframes wxFade { from { opacity: 0 } to { opacity: 1 } }
+.wx-card {
+  position: relative; background: #fff; border-radius: 20px;
+  padding: 28px 32px 26px; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  width: 300px; max-width: calc(100vw - 40px);
+  animation: wxPop .28s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes wxPop { from { opacity:0; transform: translateY(10px) scale(.96) } to { opacity:1; transform:none } }
+.wx-close {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: none; font-size: 16px; color: #999;
+  cursor: pointer; line-height: 1; padding: 4px;
+}
+.wx-close:hover { color: #333; }
+.wx-title {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 16px;
+}
+.wx-qr { width: 208px; height: 208px; object-fit: contain; border-radius: 10px; }
+.wx-id { font-size: 13px; color: #444; margin: 14px 0 14px; }
+.wx-id span { font-weight: 600; color: var(--fg); }
+.wx-copy {
+  font-family: inherit; font-size: 12.5px; cursor: pointer;
+  background: var(--fg); color: #fff; border: none;
+  padding: 9px 20px; border-radius: 999px; transition: opacity .2s;
+}
+.wx-copy:hover { opacity: .82; }
+
+/* 关于页：招呼语 + 下载简历按钮 */
+.ab-hi { font-size: 16px; font-weight: 500; color: var(--fg); margin-bottom: 14px; }
+.ab-resume {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 22px; padding: 10px 18px; border-radius: 999px;
+  border: 1px solid var(--fg); color: var(--fg);
+  font-size: 13px; cursor: pointer; transition: background .2s, color .2s;
+}
+.ab-resume:hover { background: var(--fg); color: #fff; }
+.ab-resume svg { width: 15px; height: 15px; fill: currentColor; }
+
+#page-about { padding: 68px 60px 80px; max-width: 960px; }
+.ab-grid {
+  display: grid; grid-template-columns: 1fr 360px;
+  gap: 80px; padding-top: 44px;
+}
+.ab-intro h2 {
+  font-size: 38px; font-weight: 300;
+  line-height: 1.2; letter-spacing: -.025em; margin-bottom: 28px;
+}
+.ab-intro p { font-size: 14px; line-height: 1.85; color: #555; margin-bottom: 16px; max-width: 480px; }
+.ab-intro a { color: var(--fg); border-bottom: 1px solid; cursor: none; transition: opacity .2s; }
+.ab-intro a:hover { opacity: .4; }
+.ab-sec { margin-bottom: 36px; }
+.ab-sec-t {
+  font-family: 'DM Mono', monospace; font-size: 9.5px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 13px;
+}
+.skill-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.skill {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 12px; color: #555; cursor: none;
+  transition: background .18s, color .18s, border-color .18s;
+}
+.skill:hover { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.exp-row {
+  display: flex; justify-content: space-between;
+  padding: 11px 0; border-top: 1px solid var(--border); font-size: 13px;
+}
+.exp-row:last-child { border-bottom: 1px solid var(--border); }
+.exp-dt { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+.clinks { display: flex; flex-direction: column; }
+.clink {
+  display: flex; align-items: center; gap: 12px; font-size: 13px;
+  padding: 12px 0; border-top: 1px solid var(--border);
+  cursor: none; transition: padding-left .2s;
+}
+.clink:last-child { border-bottom: 1px solid var(--border); }
+.clink:hover { padding-left: 8px; }
+.clink svg { width: 14px; height: 14px; fill: currentColor; opacity: .35; }
+.clink-arr { margin-left: auto; color: #bbb; }
+
+/* 响应式 */
+@media (max-width: 860px) {
+  :root { --cell: 64px; }
+  #page-work, #page-art, #page-about { padding-left: 24px; padding-right: 24px; }
+  .cs-layout { grid-template-columns: 1fr; }
+  .cs-sidebar { position: static; height: auto; }
+  .cs-meta { grid-template-columns: repeat(2,1fr); }
+  .ab-grid { grid-template-columns: 1fr; gap: 36px; }
+  .art-grid { column-count: 2; }
+  .w-row { grid-template-columns: 40px 1fr 60px; }
+  .w-tags, .w-year { display: none; }
+}
+
+/* ═══════════ 手机竖屏适配 (≤600px) ═══════════ */
+@media (max-width: 600px) {
+  /* 首页格子缩小以适应窄屏（9列）*/
+  :root { --cell: 38px; --gap: 2px; }
+  #page-home { padding: 0 10px; }
+
+  /* 导航：收紧、隐藏副标题与社交图标 */
+  #nav { padding: 0 16px; }
+  .nav-role { display: none; }
+  .nav-icons { display: none; }
+  .nav-mid { gap: 18px; }
+  .nav-mid a { font-size: 11px; }
+  .nav-name { font-size: 12px; }
+
+  /* 案例页：整页跟随窗口滚动 + 收起左侧 TOC */
+  .cs-layout { grid-template-columns: 1fr; min-height: 0; }
+  .cs-sidebar {
+    position: static; height: auto; overflow: visible;
+    border-right: none; border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+  }
+  .cs-toc, .cs-case-name { display: none; }        /* 手机隐藏章节列表 */
+  .cs-back { margin-bottom: 0; }
+  .cs-content { height: auto; overflow: visible; padding: 22px 20px 56px; }
+  .cs-cover { margin-bottom: 26px; }
+  .cs-title { font-size: 20px; }
+  .cs-subtitle { font-size: 13px; }
+  .cs-header-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .cs-meta { grid-template-columns: 1fr 1fr; }
+
+  /* Art：两列瀑布流 */
+  .art-grid { column-count: 2; column-gap: 8px; }
+  .art-cell { margin-bottom: 8px; }
+
+  /* 各页内边距收紧 */
+  #page-work, #page-art, #page-about { padding-left: 16px; padding-right: 16px; }
+  #page-about { padding-top: 40px; padding-bottom: 60px; }
+
+  /* 手机上气泡给可读宽度（装饰性彩蛋，容忍轻微重叠）*/
+  .grid-bubble { max-width: 130px; font-size: 10px; padding: 6px 9px; }
+}
+
+/* 更窄的小屏 (≤360px) 进一步缩小格子 */
+@media (max-width: 360px) {
+  :root { --cell: 34px; }
+}
+
+/* ═══════════ 触屏设备：关闭自定义光标与悬停跟随缩略图 ═══════════ */
+@media (pointer: coarse) {
+  #cur { display: none !important; }
+  .w-thumb { display: none !important; }        /* 悬停跟随的缩略图在触屏无意义 */
+  * { cursor: auto !important; }
+  a, button, .cell, .w-row, .art-cell, .cs-back,
+  .nav-brand, .nav-mid a, .cs-toc li { cursor: pointer !important; }
+}
+/* 案例详情页深色主题 */
+#page-case[data-theme="dark"] {
+  background: #111;
+  color: #f0f0f0;
+}
+#page-case[data-theme="dark"] .cs-sidebar {
+  background: #111;
+  border-color: rgba(255,255,255,.1);
+}
+#page-case[data-theme="dark"] .cs-toc li {
+  color: #555;
+}
+#page-case[data-theme="dark"] .cs-toc li.active-toc {
+  color: #fff;
+  border-color: #fff;
+}
+#page-case[data-theme="dark"] .cs-back {
+  color: #555;
+}
+#page-case[data-theme="dark"] .cs-back:hover { color: #fff; }
+#page-case[data-theme="dark"] .cs-case-label { color: #555; }
+#page-case[data-theme="dark"] .cs-case-name { color: #fff; }
+#page-case[data-theme="dark"] .cs-content {
+  background: #111;
+}
+#page-case[data-theme="dark"] .cs-sec-label { color: #555; }
+#page-case[data-theme="dark"] .cs-sec-big { color: #f0f0f0; }
+#page-case[data-theme="dark"] .cs-body { color: #aaa; }
+#page-case[data-theme="dark"] .cs-note {
+  border-color: rgba(255,255,255,.1);
+  background: #1a1a1a;
+}
+#page-case[data-theme="dark"] .cs-note-label { color: #555; }
+#page-case[data-theme="dark"] .cs-note-text { color: #aaa; }
+#page-case[data-theme="dark"] .cs-meta { border-color: rgba(255,255,255,.1); }
+#page-case[data-theme="dark"] .cs-meta-label { color: #555; }
+#page-case[data-theme="dark"] .cs-meta-value { color: #f0f0f0; }
+#page-case[data-theme="dark"] .cs-plink {
+  border-color: rgba(255,255,255,.1);
+  background: #1a1a1a;
+}
+#page-case[data-theme="dark"] .cs-plink:hover { background: #222; }
+#page-case[data-theme="dark"] .cs-plink-label { color: #555; }
+#page-case[data-theme="dark"] .cs-plink-name { color: #fff; }
+#page-case[data-theme="dark"] .cs-img-ph {
+  background: #1a1a1a; color: #444;
+}
+#page-case[data-theme="dark"] .cs-subtitle { color: #888; }
+#page-case[data-theme="dark"] .cs-tag {
+  border-color: rgba(255,255,255,.15);
+  color: #888;
+}
+body.case-dark #nav {
+  background: #111 !important;
+  border-color: rgba(255,255,255,.1) !important;
+}
+body.case-dark .nav-name,
+body.case-dark .nav-role,
+body.case-dark .nav-mid a,
+body.case-dark .nav-icons a {
+  color: #666 !important;
+}
+body.case-dark .nav-mid a:hover,
+body.case-dark .nav-mid a.active,
+body.case-dark .nav-icons a:hover {
+  color: #fff !important;
+}
+</style>
+</head>
+<body>
+
+<div id="cur"></div>
+
+<!-- 微信二维码弹窗 -->
+<div id="wechat-modal" class="wx-overlay" onclick="if(event.target===this)closeWechat()">
+  <div class="wx-card">
+    <button class="wx-close" onclick="closeWechat()" aria-label="关闭">✕</button>
+    <div class="wx-title">扫码加我微信</div>
+    <img src="PNG/wechat-qr.jpg" alt="微信二维码" class="wx-qr">
+    <div class="wx-id">微信号：<span id="wx-id-text">c13723465173</span></div>
+    <button class="wx-copy" onclick="copyWechat(this)">复制微信号</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     导航栏
+═══════════════════════════════════════════════ -->
+<nav id="nav">
+  <div class="nav-brand" onclick="goPage('home')">
+    <!-- ✏️ 修改你的名字 -->
+    <div class="nav-name">CHEN HANGYUE</div>
+    <!-- ✏️ 修改你的职位 -->
+    <div class="nav-role">Design Engineer</div>
+  </div>
+
+  <div class="nav-mid">
+    <a href="#" data-page="work"  onclick="goPage('work');return false;">Work</a>
+    <a href="#" data-page="art"   onclick="goPage('art');return false;">Art</a>
+    <a href="#" data-page="about" onclick="goPage('about');return false;">About</a>
+  </div>
+
+  <div class="nav-icons">
+    <!-- 微信：点击弹出二维码 -->
+    <a href="#" title="WeChat 微信" onclick="openWechat();return false;">
+      <svg viewBox="0 0 24 24"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.5 1.4 4.7 3.6 6.1L5 21l3.8-2c1 .3 2.1.5 3.2.5 5.5 0 10-3.6 10-8s-4.5-8-10-8zm-3 6.5a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4zm6 0a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z"/></svg>
+    </a>
+    <!-- GitHub：用户名待补，先占位 -->
+    <a href="https://github.com/" target="_blank" title="GitHub（待补用户名）">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.49.5.09.66-.22.66-.48v-1.7C6.73 19.91 6.14 18 6.14 18c-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.8c.85.004 1.71.115 2.51.337 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10.01 10.01 0 0022 12c0-5.52-4.48-10-10-10z"/></svg>
+    </a>
+    <!-- 邮箱 -->
+    <a href="mailto:hangyuechan@163.com" title="Email">
+      <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+    </a>
+  </div>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════════
+     首页 — HOME
+═══════════════════════════════════════════════ -->
+<div id="page-home" class="page active">
+  <!--
+    气泡层在格子上方：所有气泡渲染在这里
+    高度为0，气泡通过 bottom 定位向上延伸，不遮挡格子
+  -->
+
+  <!-- 格子网格 -->
+  <div class="grid-scene">
+    <div class="grid" id="grid">
+      <!-- 由 JS 动态生成 -->
+    </div>
+  </div>
+
+  <div class="home-hint">Click the dark cells</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     Work 页 — 行列式目录
+═══════════════════════════════════════════════ -->
+<div id="page-work" class="page">
+  <div class="work-header">
+    <!-- ✏️ 修改 Work 页标题 -->
+    <div class="work-label">Selected Work</div>
+    <h1 class="work-title">Things I've<br>worked on</h1>
+  </div>
+
+  <!-- 跟随鼠标的预览缩略图 -->
+  <div class="w-thumb" id="w-thumb">
+    <div class="w-thumb-inner" id="w-thumb-inner"></div>
+  </div>
+
+  <div class="w-list" id="w-list">
+    <!--
+      ══════════════════════════════════════════════════════════════════
+      ✏️ 作品目录行 — 如果需要添加更多作品，复制以下整个 div.w-row 块
+         同时在 JS 的 WORKS 数据里添加对应的 id 详情
+      ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- ── 作品 1 ── -->
+    <!-- ✏️ data-id 要和下面 JS WORKS 数据里的 key 一致 -->
+    <!-- ✏️ data-bg 是 hover 缩略图背景色，data-em 是缩略图表情 -->
+    <div class="w-row" data-id="work1" data-bg="#f0c040" data-em="🎨" data-img="PNG/work1-cover.png"
+         onclick="openCase('work1')">
+      <span class="w-num">01</span>
+      <!-- ✏️ 修改作品名称 -->
+      <span class="w-name">味小厨APP AI驱动的美食社交平台</span>
+      <div class="w-tags">
+        <!-- ✏️ 修改标签（可以有多个 span） -->
+        <span class="w-tag">Prototypes</span>
+        <span class="w-tag">UI/UX</span>
+        <span class="w-tag">AI Agent</span>
+      </div>
+      <!-- ✏️ 修改年份 -->
+      <span class="w-year">2026</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 2 ── -->
+    <div class="w-row" data-id="work2" data-bg="#f0c040" data-em="🎨" data-img="PNG/work2-cover.png"
+         onclick="openCase('work2')">
+      <span class="w-num">02</span>
+      <span class="w-name">Cathay Active 运动健康生活方式品牌</span>
+      <div class="w-tags">
+        <span class="w-tag">B2B</span>
+        <span class="w-tag">UI/UX</span>
+        <span class="w-tag">生活方式</span>
+      </div>
+      <span class="w-year">2026</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 3 ── -->
+    <div class="w-row" data-id="work3" data-bg="#f0c040" data-em="🎨" data-img="PNG/work3-cover.png"
+         onclick="openCase('work3')">
+      <span class="w-num">03</span>
+      <span class="w-name">AirLingual 空调场景智能解决方案</span>
+      <div class="w-tags">
+        <span class="w-tag">Smart Home</span>
+        <span class="w-tag">Future Interaction</span>
+        <span class="w-tag">Experience Design</span>
+      </div>
+      <span class="w-year">2025</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 4 ── -->
+    <div class="w-row" data-id="work4" data-bg="#f0c040" data-em="🎨" data-img="PNG/work4-cover.png"
+         onclick="openCase('work4')">
+      <span class="w-num">04</span>
+      <span class="w-name">City Elves 城市精灵城市循环设计</span>
+      <div class="w-tags">
+        <span class="w-tag">Service System</span>
+        <span class="w-tag">Public Design</span>
+        <span class="w-tag">Figma</span>
+      </div>
+      <span class="w-year">2024</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 5 ── -->
+    <div class="w-row" data-id="work5" data-bg="#c8a8f0" data-em="💫" data-img="PNG/work5-cover.png"
+         onclick="openCase('work5')">
+      <span class="w-num">05</span>
+      <span class="w-name">Guilty Pleasure 阈限空间</span>
+      <div class="w-tags">
+        <span class="w-tag">UE5</span>
+        <span class="w-tag">地编</span>
+      </div>
+      <span class="w-year">2024</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 6 ── -->
+    <div class="w-row" data-id="work6" data-bg="#f0a8c8" data-em="📐" data-img="PNG/work6-cover.png"
+         onclick="openCase('work6')">
+      <span class="w-num">06</span>
+      <span class="w-name">Formlessness 四相无相</span>
+      <div class="w-tags">
+        <span class="w-tag">文化旅游</span>
+        <span class="w-tag">沉浸式体验</span>
+        <span class="w-tag">UE5</span>
+      </div>
+      <span class="w-year">2023</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 7 ── -->
+    <div class="w-row" data-id="work7" data-bg="#颜色" data-em="🎯" data-img="PNG/work7-cover.png"
+         onclick="openCase('work7')">
+      <span class="w-num">07</span>
+      <span class="w-name">后生仔凉茶 品牌</span>
+      <div class="w-tags">
+        <span class="w-tag">Branding</span>
+        <span class="w-tag">Local Culture</span>
+      </div>
+      <span class="w-year">2024</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    <!-- ── 作品 8 ── -->
+    <div class="w-row" data-id="work8" data-bg="#颜色" data-em="🎯" data-img="PNG/work8-cover.png"
+         onclick="openCase('work8')">
+      <span class="w-num">08</span>
+      <span class="w-name">老鹰捉小鸡 儿童玩具</span>
+      <div class="w-tags">
+        <span class="w-tag">Children's toys</span>
+        <span class="w-tag">木艺</span>
+      </div>
+      <span class="w-year">2024</span>
+      <span class="w-arr">→</span>
+    </div>
+    <!--
+      ✏️ 以下是增加 work 目录的方法：
+      复制以上整个 div.w-row 块，修改序号/标题/标签/年份
+      然后在下方 JS WORKS 数据里加一个对应的 work7: { ... }
+    -->
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     案例详情页 — CASE STUDY
+     点击 Work 目录行后进入
+═══════════════════════════════════════════════ -->
+<div id="page-case">
+  <div class="cs-layout">
+    <!-- 左侧固定目录 -->
+    <div class="cs-sidebar">
+      <div class="cs-back" onclick="goPage('work')">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        Back to Projects
+      </div>
+      <div class="cs-case-label">Case Study</div>
+      <div class="cs-case-name" id="cs-name">—</div>
+      <ul class="cs-toc" id="cs-toc"></ul>
+    </div>
+    <!-- 右侧内容 -->
+    <div class="cs-content" id="cs-content"></div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     Art 页
+═══════════════════════════════════════════════ -->
+<div id="page-art" class="page">
+  <div class="pg-label">Art & Illustration</div>
+  <h1 class="pg-title">Side projects<br>& experiments</h1>
+  <div class="art-grid" id="art-grid"><!-- ✏️ 由 initArtGrid() 动态填充（每次进入随机排布） --></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     About 页
+═══════════════════════════════════════════════ -->
+<div id="page-about" class="page">
+  <div class="ab-grid">
+    <div class="ab-intro">
+      <div class="pg-label">About</div>
+      <h2>什么都做一点的<br>设计师 × 工程师</h2>
+      <p class="ab-hi">嗨，我是陈航越 👋</p>
+      <p>中央美术学院数字交互设计本科（2021–2025），现在在香港理工大学读硕士（2025–2026），常驻深圳。</p>
+      <p>我的作品比较"杂"——产品、UI、交互、品牌、3D、AIGC 都做过，一直走在从设计师往设计工程师转型的路上。比起被单一标签框住，我更喜欢在不同领域之间找连接。</p>
+      <p>性格上我是个双鱼座 ISTJ：一半感性，爱琢磨体验和情绪；一半务实，靠流程和细节把事情稳稳落地。</p>
+      <p>Hi, I'm <strong>CHEN HANGYUE</strong> — a designer-engineer based in Shenzhen who likes making things that are both thoughtful and that actually work.</p>
+      <a class="ab-resume" href="PNG/chenhangyue-resume.pdf" target="_blank" download>
+        <svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>
+        下载简历 / Résumé
+      </a>
+    </div>
+    <div>
+      <div class="ab-sec">
+        <div class="ab-sec-t">Skills</div>
+        <div class="skill-wrap">
+          <span class="skill">Figma</span>
+          <span class="skill">Illustrator</span>
+          <span class="skill">Photoshop</span>
+          <span class="skill">After Effects</span>
+          <span class="skill">Cinema 4D</span>
+          <span class="skill">Blender</span>
+          <span class="skill">AIGC Tools</span>
+          <span class="skill">3D Animation</span>
+          <span class="skill">UI / UX</span>
+          <span class="skill">Interaction</span>
+          <span class="skill">Branding</span>
+        </div>
+      </div>
+      <div class="ab-sec">
+        <div class="ab-sec-t">Education</div>
+        <div class="exp-row"><span>香港理工大学 · 硕士</span><span class="exp-dt">2025 – 2026</span></div>
+        <div class="exp-row"><span>中央美术学院 · 本科</span><span class="exp-dt">2021 – 2025</span></div>
+      </div>
+      <div class="ab-sec">
+        <div class="ab-sec-t">Experience</div>
+        <div class="exp-row"><span>深圳麦克维尔科技 · 新媒体设计</span><span class="exp-dt">2025.01 – 2025.05</span></div>
+        <div class="exp-row"><span>北京阿里云计算 · 创意体验设计</span><span class="exp-dt">2024.06 – 2024.11</span></div>
+      </div>
+      <div class="ab-sec">
+        <div class="ab-sec-t">Honors</div>
+        <div class="exp-row"><span>蓝桥杯学生组 · 全国一等奖</span><span class="exp-dt">2023</span></div>
+        <div class="exp-row"><span>北京挑战杯 · 优秀作品</span><span class="exp-dt">2024</span></div>
+        <div class="exp-row"><span>中央美术学院奖学金 ×3</span><span class="exp-dt">2023 – 2024</span></div>
+      </div>
+      <div class="ab-sec">
+        <div class="ab-sec-t">Get in touch</div>
+        <div class="clinks">
+          <a class="clink" href="#" onclick="openWechat();return false;">
+            <svg viewBox="0 0 24 24"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.5 1.4 4.7 3.6 6.1L5 21l3.8-2c1 .3 2.1.5 3.2.5 5.5 0 10-3.6 10-8s-4.5-8-10-8zm-3 6.5a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4zm6 0a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z"/></svg>
+            WeChat · c13723465173<span class="clink-arr">→</span>
+          </a>
+          <a class="clink" href="mailto:hangyuechan@163.com">
+            <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            hangyuechan@163.com<span class="clink-arr">→</span>
+          </a>
+          <a class="clink" href="https://github.com/" target="_blank">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.49.5.09.66-.22.66-.48v-1.7C6.73 19.91 6.14 18 6.14 18c-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.8c.85.004 1.71.115 2.51.337 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10.01 10.01 0 0022 12c0-5.52-4.48-10-10-10z"/></svg>
+            GitHub<span class="clink-arr">→</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JavaScript
+═══════════════════════════════════════════════════════════════ -->
+<script>
+
+/* ══════════════════════════════════════════════════════════════
+   ✏️ 首页黑色格子卡片数据
+   
+   - bg:     格子打开后的背景色
+   - bubble: 气泡文字（✏️ 改成你想说的话）
+   - img:    人物图片路径（✏️ 如 './img/1.png'，留空用 emoji）
+   - emoji:  无图片时的备用表情
+
+   第一条 (id:'hero') 是中间主角格，位置固定在格子23，开屏自动打开。
+   其余13条随机分布在剩余44个格子里。
+   每次刷新重新随机。
+══════════════════════════════════════════════════════════════ */
+const CARD_DATA = [
+  // ── 主角格子（格子23，固定位置，开屏自动翻开）──
+  { bg: '#6ab8f5', bubble: "Hi, 我是陈航越! 👋",            img: '', emoji: '👋' },
+
+  // ── 以下13张随机分布 ──
+  // ✏️ 修改每张卡片的气泡文字、背景色、图片
+  { bg: '#f0c040', bubble: 'Chinese food is always the best!',  img: '', emoji: '🍜' },
+  { bg: '#f08060', bubble: 'Hope I can have my own cat one day :)', img: '', emoji: '🐱' },
+  { bg: '#d4eea0', bubble: 'Work out everyday!',                img: '', emoji: '🏋️' },
+  { bg: '#c8f0d8', bubble: 'Every designer loves flower!',      img: '', emoji: '🌸' },
+  { bg: '#a8d8f0', bubble: "Help! I can't swim!",               img: '', emoji: '🤿' },
+  { bg: '#f0c8a8', bubble: "I'd love to work at startups!",     img: '', emoji: '🚀' },
+  { bg: '#d8b8f8', bubble: 'Product Designer & Design Engineer', img: '', emoji: '💻' },
+  { bg: '#b8e8d0', bubble: 'Painting gives new ideas!',         img: '', emoji: '🎨' },
+  { bg: '#f8e0b0', bubble: 'Tennis!',                           img: '', emoji: '🎾' },
+  { bg: '#c8a8e8', bubble: 'I have wonderful design power!',    img: '', emoji: '✨' },
+  { bg: '#b0d8f8', bubble: 'Geese kind of scare me :(',         img: '', emoji: '🪿' },
+  { bg: '#f0b8c8', bubble: "Let's connect!",                    img: '', emoji: '🤝' },
+  { bg: '#f0d898', bubble: '"I wonder" is the best song ever...', img: '', emoji: '🎵' },
+];
+
+/* ══════════════════════════════════════════════════════════════
+   ✏️ 案例详情数据
+   
+   key 要和 HTML 里 w-row 的 data-id 一致。
+   
+   如需添加新作品：
+   1. 在 HTML 的 w-list 里复制一个 w-row 块，改 data-id="work7"
+   2. 在这里添加 work7: { ... } 对象
+   
+   字段说明：
+   - name:      左侧栏显示的案例名
+   - title:     右侧大标题（Overview 区）
+   - subtitle:  案例副标题
+   - tags:      右上角标签数组
+   - toc:       左侧目录数组（字符串）
+   - coverImg:  ✏️ 封面图路径（如 './img/work1.jpg'），留空用颜色块
+   - coverBg:   封面颜色（无图时）
+   - coverEmoji:封面表情（无图时）
+   - meta:      角色/技能/时间/工具
+   - productLink: 产品链接卡（不需要就删掉整行）
+   - note:      NOTE 备注文字
+   - sections:  内容区块数组，每块有 id/label/title/body/img/imgEmoji/imgH
+══════════════════════════════════════════════════════════════ */
+const WORKS = {
+
+  /* ── 味小厨APP ── */
+  work1: {
+    name: '味小厨APP',
+    title: '以AI驱动的留学生美食社交平台升级',
+    subtitle: '味小厨APP AI驱动的美食社交平台',
+    desc: '这里写你想显示的小标题，可以和上面完全不同',
+    tags: ['Prototypes', 'UI/UX', 'AI agent'],
+    toc: ['OVERVIEW', 'BACKGROUND', 'USER CHARACTERISTICS', 'PRODUCT STRATEGY', 'COMPETITIVE ANALYSIS', 'CORE ISSUES & FINDINGS', 'UI/UX DESIGN', 'DESIGN VALIDATION'],
+    coverImg: 'PNG/work1-cover.png',
+    coverBg: 'linear-gradient(135deg,#1a1a2e,#16213e)',
+    coverEmoji: '🎨',
+    meta: {
+      role: 'Design Engineer',
+      skills: ['React', 'CSS Animation', 'WebGL', 'Motion Design'],
+      duration: '2025 – 2026',
+      tool: 'Figma',
+    },
+    productLink: { label: 'TRY THE PRODUCT', name: '.design', icon: '🔗', url: 'https://我的链接.design' },
+    note: '“味小厨”是一款面向海外留学生群体的美食生活伙伴与社交平台。我们不止提供个性化菜谱规划，更致力于系统性解决海外饮食生活困境，重塑下厨的乐趣与意义。',
+    sections: [
+
+      {
+        id: 'sec1', label: 'BACKGROUND',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-01.png', imgW: 480 },
+          { img: 'PNG/work1-02.png', imgW: 480 },
+          { img: 'PNG/work1-03.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'USER CHARACTERISTICS',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-04.png', imgW: 480 },
+          { img: 'PNG/work1-05.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'PRODUCT STRATEGY',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-06.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'COMPETITIVE ANALYSIS',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-07.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec5', label: 'CORE ISSUES & FINDINGS',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-08.png', imgW: 480 },
+          { img: 'PNG/work1-09.png', imgW: 480 },
+          { img: 'PNG/work1-10.png', imgW: 480 },
+          { img: 'PNG/work1-11.png', imgW: 480 },
+          { img: 'PNG/work1-12.png', imgW: 480 },
+          { img: 'PNG/work1-13.png', imgW: 480 },
+          { img: 'PNG/work1-14.png', imgW: 480 },
+          { img: 'PNG/work1-15.png', imgW: 480 },
+          { img: 'PNG/work1-16.png', imgW: 480 },
+          { img: 'PNG/work1-17.png', imgW: 480 },
+          { img: 'PNG/work1-18.png', imgW: 480 },
+          { img: 'PNG/work1-19.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec6', label: 'UI/UX DESIGN',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-20.png', imgW: 480 },
+          { img: 'PNG/work1-21.png', imgW: 480 },
+          { img: 'PNG/work1-22.png', imgW: 480 },
+          { img: 'PNG/work1-23.png', imgW: 480 },
+          { img: 'PNG/work1-24.png', imgW: 480 },
+          { img: 'PNG/work1-25.png', imgW: 480 },
+          { img: 'PNG/work1-26.png', imgW: 480 },
+          { img: 'PNG/work1-27.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec7', label: 'DESIGN VALIDATION',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work1-28.png', imgW: 480 },
+          { img: 'PNG/work1-29.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── Cathay Active ── */
+  work2: {
+    name: 'Cathay Active',
+    title: 'A lifestyle-driven airline membership ecosystem.',
+    subtitle: 'Cathay Active',
+    desc: '生活方式导向的航空会员生态系统',
+    tags: ['B2B', 'UI/UX Design', '健康生活方式'],
+    toc: ['OVERVIEW', 'OVERVIEW & MISSION', 'TARGET USER', 'LIFESTYLE RESEARCH', 'PERSONA', 'DESIGN FRAMEWORK', 'PRODUCT DESIGN', 'MEMBERSHIP SYSTEM', 'ABOUT FUTURE'],
+    coverImg: 'PNG/work2-cover.png',
+    coverBg: 'linear-gradient(135deg,#2c3e50,#3498db)',
+    coverEmoji: '💼',
+    meta: {
+      role: 'Product Design Intern',
+      skills: ['Design System', 'Prototyping', 'Product Thinking', ],
+      duration: 'Sep 2025 – Mar 2026',
+      tool: 'Figma',
+    },
+    productLink: { label: 'TRY THE PRODUCT', name: 'Cathay Active Shortvideo', icon: '🔮', url: 'https://www.youtube.com/watch?v=HyJf4n2rEgI&feature=youtu.be' },
+    note: 'I collaborated with the team end-to-end — from research and concept development to product handoff.',
+    sections: [
+
+      {
+        id: 'sec1', label: 'OVERVIEW & MISSION',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-01.png', imgW: 480 },
+          { img: 'PNG/work2-02.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'TARGET USER',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-03.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'LIFESTYLE RESEARCH',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-04.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'PERSONA',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-05.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec5', label: 'DESIGN FRAMEWORK',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-06.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec6', label: 'PRODUCT DESIGN',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-07.png', imgW: 480 },
+          { img: 'PNG/work2-08.png', imgW: 480 },
+          { img: 'PNG/work2-09.png', imgW: 480 },
+          { img: 'PNG/work2-10.png', imgW: 480 },
+          { img: 'PNG/work2-11.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec7', label: 'MEMBERSHIP SYSTEM',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-12.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec8', label: 'ABOUT FUTURE',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work2-13.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── AirLingual ── */
+  work3: {
+    name: 'AirLingual',
+    title: '诠释呼吸生活的新形态',
+    subtitle: '空调场景智能解决方案',
+    desc: 'A New Language of Living with Air',
+    tags: ['Smart Home', 'Future Interaction', 'Experience Design'],
+    toc: ['OVERVIEW', 'BACKGROUND', 'MISSION & PRINCIPLES', 'TARGET CONSUMER', 'PROBLEM & RESEARCH', 'OPPORTUNITIES', 'INSIGHT', 'SOLUTION'],
+    coverImg: 'PNG/work3-cover.png',
+    coverBg: 'linear-gradient(135deg,#333,#555)',
+    coverEmoji: '🎨',
+    meta: {
+      role: 'Product Designer',
+      skills: ['Mobile Design', 'User Research', 'Prototyping', 'Guidelines'],
+      duration: 'Sep 2025 – Dec 2025',
+      tool: 'Figma',
+    },
+    productLink: { label: 'TRY THE PRODUCT', name: 'AirLingual video', icon: '🎬', url: 'https://www.youtube.com/watch?v=siVtrUIHA80&feature=youtu.be' },
+    note: 'First mobile experience for OpusClip — designed from scratch to make AI video editing accessible on iOS.',
+    sections: [
+
+      {
+        id: 'sec1', label: 'BACKGROUND',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-00.png', imgW: 480 },
+          { img: 'PNG/work3-01.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'MISSION & PRINCIPLES',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-02.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'TARGET CONSUMER',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-03.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'PROBLEM & RESEARCH',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-04.png', imgW: 480 },
+          { img: 'PNG/work3-05.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec5', label: 'OPPORTUNITIES',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-06.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec6', label: 'INSIGHT',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-07.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec7', label: 'SOLUTION',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work3-08.png', imgW: 480 },
+          { img: 'PNG/work3-09.png', imgW: 480 },
+          { img: 'PNG/work3-10.png', imgW: 480 },
+          { img: 'PNG/work3-11.png', imgW: 480 },
+          { img: 'PNG/work3-12.png', imgW: 480 },
+          { img: 'PNG/work3-13.png', imgW: 480 },
+          { img: 'PNG/work3-14.png', imgW: 480 },
+          { img: 'PNG/work3-15.png', imgW: 480 },
+          { img: 'PNG/work3-16.png', imgW: 480 },
+          { img: 'PNG/work3-17.png', imgW: 480 },
+          { img: 'PNG/work3-18.png', imgW: 480 },
+          { img: 'PNG/work3-19.png', imgW: 480 },
+          { img: 'PNG/work3-20.png', imgW: 480 },
+          { img: 'PNG/work3-21.png', imgW: 480 },
+          { img: 'PNG/work3-22.png', imgW: 480 },
+          { img: 'PNG/work3-23.png', imgW: 480 },
+          { img: 'PNG/work3-24.png', imgW: 480 },
+          { img: 'PNG/work3-25.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── City Elves ── */
+  work4: {
+    name: 'City Elves',
+    title: 'City Elves 城市精灵城市循环设计',
+    subtitle: 'City Elves 城市精灵城市循环设计',
+    desc: '面向社区垃圾分类场景的服务系统与移动端体验设计',
+    tags: ['Service System', 'Public Design', ],
+    toc: ['OVERVIEW', 'INTRO', 'RESEARCH', 'VISUAL DIRECTION', 'UI/UX', 'REWARDS'],
+    coverImg: 'PNG/work4-cover.png',
+    coverBg: 'linear-gradient(135deg,#27ae60,#2ecc71)',
+    coverEmoji: '🌿',
+    meta: {
+      role: 'Brand Designer',
+      skills: ['Service System', 'ublic Design', ],
+      duration: 'Sep 2024 – Dec 2024',
+      tool: 'Figma + Illustrator + Blender',
+    },
+    productLink: null,
+    note: 'End-to-end',
+    sections: [
+
+      {
+        id: 'sec1', label: 'INTRO',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work4-01.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'RESEARCH',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work4-02.png', imgW: 480 },
+          { img: 'PNG/work4-03.png', imgW: 480 },
+          { img: 'PNG/work4-04.png', imgW: 480 },
+          { img: 'PNG/work4-05.png', imgW: 480 },
+          { img: 'PNG/work4-06.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'VISUAL DIRECTION',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work4-07.png', imgW: 480 },
+          { img: 'PNG/work4-08.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'UI/UX',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work4-09.png', imgW: 480 },
+          { img: 'PNG/work4-10.png', imgW: 480 },
+          { img: 'PNG/work4-11.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec5', label: 'REWARDS',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work4-12.png', imgW: 480 },
+          { img: 'PNG/work4-13.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── Interactive Experience ── */
+  work5: {
+    name: 'Interactive Experience',
+    title: 'WebGL-powered interactive experience pushing the boundaries of browser graphics.',
+    subtitle: 'Interactive Experience',
+    tags: ['WebGL', 'Three.js', 'Creative Coding'],
+    toc: ['OVERVIEW', 'PROJECT OVERVIEW', 'CONCEPT', 'VISUALS'],
+    coverImg: 'PNG/work5-cover.png',
+    coverBg: 'linear-gradient(135deg,#6c3483,#c8a8f0)',
+    coverEmoji: '💫',
+    dark: true,
+    meta: {
+      role: 'Creative Developer',
+      skills: ['Three.js', 'GLSL', 'WebGL', 'JavaScript'],
+      duration: 'Oct 2023 – Nov 2023',
+      tool: 'VS Code + Blender',
+    },
+    productLink: { label: 'TRY THE PRODUCT', name: 'AirLingual video', icon: '🎬', url: 'https://www.youtube.com/watch?v=siVtrUIHA80&feature=youtu.be' },
+    note: 'First mobile experience for OpusClip — designed from scratch to make AI video editing accessible on iOS.',
+    sections: [
+
+      {
+        id: 'sec1', label: 'PROJECT OVERVIEW',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work5-01.png', imgW: 480 },
+          { img: 'PNG/work5-03.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'CONCEPT',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work5-02.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'VISUALS',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work5-04.png', imgW: 480 },
+          { img: 'PNG/work5-05.png', imgW: 480 },
+          { img: 'PNG/work5-06.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── Mobile App Design ── */
+  work6: {
+    name: 'Mobile App Design',
+    title: 'End-to-end iOS app design for a productivity tool targeting knowledge workers.',
+    subtitle: 'Mobile App Design',
+    tags: ['iOS', 'UX', 'Productivity'],
+    toc: ['OVERVIEW', 'THE LONGMEN GROTTOES', 'BACKGROUND', 'PROCESS & CRAFT', 'RESULT'],
+    coverImg: 'PNG/work6-cover.png',
+    coverBg: 'linear-gradient(135deg,#f0a8c8,#e74c3c)',
+    coverEmoji: '📐',
+    meta: {
+      role: 'UX Designer',
+      skills: ['iOS Guidelines', 'User Research', 'Prototyping', 'Usability Testing'],
+      duration: 'Jun 2022 – Sep 2022',
+      tool: 'Figma',
+    },
+    productLink: null,
+    note: 'Designed the full iOS app experience from user research to high-fidelity prototype.',
+    sections: [
+
+      {
+        id: 'sec1', label: 'THE LONGMEN GROTTOES',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work6-00.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'BACKGROUND',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work6-01.png', imgW: 480 },
+          { img: 'PNG/work6-02.png', imgW: 480 },
+          { img: 'PNG/work6-03.png', imgW: 480 },
+          { img: 'PNG/work6-04.png', imgW: 480 },
+          { img: 'PNG/work6-05.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'PROCESS & CRAFT',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work6-06.png', imgW: 480 },
+          { img: 'PNG/work6-07.png', imgW: 480 },
+          { img: 'PNG/work6-08.png', imgW: 480 },
+          { img: 'PNG/work6-09.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'RESULT',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work6-10.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── 后生仔凉茶 ── */
+  work7: {
+    name: '后生仔凉茶',
+    title: '后生仔凉茶',
+    subtitle: '后生仔凉茶',
+    desc: '用现代手法制作传统',
+    tags: ['Branding', 'Traditional'],
+    toc: ['OVERVIEW', 'LOGO DESIGN', 'VISUAL SYSTEM', 'VISUAL IDENTITY', 'BRAND', 'APP DESIGN'],
+    coverImg: 'PNG/work7-cover.png',
+    coverBg: 'linear-gradient(135deg,#xxx,#xxx)',
+    coverEmoji: '🎯',
+    meta: {
+      role: 'Designer',
+      skills: ['Logo Design', 'Typography', 'Color System', 'UI/UX'],
+      duration: '2024.6-202.10',
+      tool: 'Figma',
+    },
+    productLink: null,
+    note: '这个项目通过现代的设计镜头，重新构思传统的中国凉茶，将其文化精髓与当代的美学和功能融合在一起。在传统与创新之间取得了平衡，使凉茶传统具有吸引力，并吸引了年轻、关注潮流的观众。',
+    sections: [
+
+      {
+        id: 'sec1', label: 'LOGO DESIGN',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work7-02.png', imgW: 480 },
+          { img: 'PNG/work7-03.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'VISUAL SYSTEM',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work7-04.png', imgW: 480 },
+          { img: 'PNG/work7-05.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'VISUAL IDENTITY',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work7-06.png', imgW: 480 },
+          { img: 'PNG/work7-07.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'BRAND',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work7-08.png', imgW: 480 },
+          { img: 'PNG/work7-09.png', imgW: 480 },
+          { img: 'PNG/work7-10.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec5', label: 'APP DESIGN',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work7-11.png', imgW: 480 },
+          { img: 'PNG/work7-12.png', imgW: 480 },
+          { img: 'PNG/work7-13.png', imgW: 480 },
+          { img: 'PNG/work7-14.png', imgW: 480 },
+          { img: 'PNG/work7-15.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+  /* ── 老鹰抓小鸡 THE GAME OF CHICKEN ── */
+  work8: {
+    name: '老鹰抓小鸡 THE GAME OF CHICKEN',
+    title: '一场对于童年旧时光的纪念',
+    subtitle: '老鹰抓小鸡 THE GAME OF CHICKEN',
+    tags: ['儿童玩具', '木艺'],
+    toc: ['OVERVIEW', 'INTRO', 'TOY CONFIGURATION', 'CHARACTERS', 'SUSTAINABLE PACKAGING', 'FOR CHILDREN'],
+    coverImg: 'PNG/work8-cover.png',
+    coverBg: 'linear-gradient(135deg,#xxx,#xxx)',
+    coverEmoji: '🎯',
+    meta: {
+      role: '设计者 制作者',
+      skills: ['IP设计', '木艺手工'],
+      duration: '2023.4-2023.6',
+      tool: 'PS, AI, 胡桃木，榉木',
+    },
+    productLink: null,
+    note: '将传统户外游戏“老鹰捉小鸡”重构为高级木制桌面潮玩。',
+    sections: [
+
+      {
+        id: 'sec1', label: 'INTRO',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work8-01.png', imgW: 480 },
+          { img: 'PNG/work8-02.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec2', label: 'TOY CONFIGURATION',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work8-03.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec3', label: 'CHARACTERS',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work8-04.png', imgW: 480 },
+          { img: 'PNG/work8-05.png', imgW: 480 },
+          { img: 'PNG/work8-06.png', imgW: 480 },
+          { img: 'PNG/work8-07.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec4', label: 'SUSTAINABLE PACKAGING',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work8-08.png', imgW: 480 },
+          { img: 'PNG/work8-09.png', imgW: 480 },
+          { img: 'PNG/work8-10.png', imgW: 480 }
+        ],
+      },
+      {
+        id: 'sec5', label: 'FOR CHILDREN',
+        title: '', body: '',
+        imgs: [
+          { img: 'PNG/work8-11.png', imgW: 480 },
+          { img: 'PNG/work8-12.png', imgW: 480 }
+        ],
+      }
+    ],
+  },
+
+/*
+    ══════════════════════════════════════════════════════════════
+    ✏️ 以下是增加 work 目录的完整方法：
+
+    步骤1：在上方 HTML 的 w-list 里复制一个 w-row 块，例如：
+    <div class="w-row" data-id="work7" data-bg="#颜色" data-em="🎯"
+         onclick="openCase('work7')">
+      <span class="w-num">07</span>
+      <span class="w-name">你的作品名</span>
+      <div class="w-tags"><span class="w-tag">标签</span></div>
+      <span class="w-year">2024</span>
+      <span class="w-arr">→</span>
+    </div>
+
+    步骤2：在这里复制以下模板：
+    work7: {
+      name: '你的作品名',
+      title: '大标题描述（Overview 区显示）',
+      subtitle: '作品名（header 显示）',
+      tags: ['标签1', '标签2'],
+      toc: ['OVERVIEW', '章节1', '章节2'],
+      coverImg: './img/work7.jpg',   // ✏️ 封面图路径（留空用颜色块）
+      coverBg: 'linear-gradient(135deg,#xxx,#xxx)',
+      coverEmoji: '🎯',
+      meta: {
+        role: '你的角色',
+        skills: ['技能1', '技能2'],
+        duration: '起止时间',
+        tool: '使用工具',
+      },
+      productLink: { label: 'TRY THE PRODUCT', name: '网址', icon: '🔗', url: 'https://...' },
+      // 或者 productLink: null, （不显示）
+      note: 'NOTE 备注文字',
+      sections: [
+        {
+          id: 'section-id',       // 对应 toc 里的章节
+          label: 'SECTION LABEL', // 章节标签（全大写）
+          title: '章节标题',
+          body: '章节正文内容',
+          img: './img/sec.jpg',   // ✏️ 内容图路径（留空用占位块）
+          imgEmoji: '🖼️',
+          imgH: 300,              // 图片/占位块高度 px
+        },
+      ],
+    },
+    // 双图并排
+{
+  id: 'compare', label: 'DESIGN PROCESS',
+  title: '前后对比',
+  body: '说明文字',
+  imgPair: ['PNG/before.png', 'PNG/after.png'],
+},
+
+// YouTube视频
+{
+  id: 'demo', label: 'DEMO',
+  title: '产品演示',
+  body: '说明文字',
+  // 注意：把 youtube.com/watch?v=xxx 换成 youtube.com/embed/xxx
+  video: 'https://www.youtube.com/embed/siVtrUIHA80',
+},
+    ══════════════════════════════════════════════════════════════
+  */
+};
+function openLink(e, url) {
+  e.stopPropagation();
+  window.open(url, '_blank');
+}
+
+/* ══════════════════════════════════════════════════════
+   首页 格子构建
+══════════════════════════════════════════════════════ */
+const COLS = 9, ROWS = 5, TOTAL = 45;
+const HERO = 23;       // 主角格子，始终固定
+const DARK_COUNT = 14; // 总黑格数（含主角）
+
+let openSet = new Set(); // 当前已打开的格子
+
+function buildGrid() {
+  const gridEl = document.getElementById('grid');
+  gridEl.innerHTML = '';
+  openSet.clear();
+
+  /* 随机抽取13个位置（排除格子23）*/
+  const pool = [];
+  for (let i = 1; i <= TOTAL; i++) { if (i !== HERO) pool.push(i); }
+  // Fisher-Yates 洗牌
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const darkPos = new Set([HERO, ...pool.slice(0, DARK_COUNT - 1)]);
+
+  /* 构建 位置→卡片数据 映射，并绑定固定编号(1=主角, 2~14=各卡片) */
+  const pos2card = {};
+  const pos2num = {};
+  pos2card[HERO] = CARD_DATA[0];
+  pos2num[HERO] = 1;                     /* 主角格永远是 1 号 */
+  let ci = 1;
+  pool.slice(0, DARK_COUNT - 1).forEach(p => {
+    pos2card[p] = CARD_DATA[ci % CARD_DATA.length];
+    pos2num[p] = ci + 1;                 /* 2~14 号：内容固定，位置随机 */
+    ci++;
+  });
+
+  /* 生成格子 DOM */
+  for (let i = 1; i <= TOTAL; i++) {
+    const card = pos2card[i];
+    const isDark = darkPos.has(i);
+
+    const cell = document.createElement('div');
+    cell.className = isDark ? 'cell dark' : 'cell empty';
+    cell.dataset.i = i;
+    if (isDark) cell.dataset.card = pos2num[i];   /* ✏️ 固定编号：1=主角, 2~14=各卡片(位置随机、编号不变) */
+    cell.style.animationDelay = (i * 9) + 'ms';
+
+    if (isDark && card) {
+      /* ── 底层 ── */
+      const bg = document.createElement('div');
+      bg.className = 'cell-bg';
+      cell.appendChild(bg);
+
+      /* ── 中层：图片/emoji ── */
+      const imgLayer = document.createElement('div');
+      imgLayer.className = 'cell-img';
+      imgLayer.style.background = card.bg;
+      if (card.img) {
+        const img = document.createElement('img');
+        img.src = card.img; img.alt = '';
+        imgLayer.appendChild(img);
+      } else {
+        const em = document.createElement('div');
+        em.className = 'cell-emoji';
+        em.textContent = card.emoji;
+        imgLayer.appendChild(em);
+      }
+      cell.appendChild(imgLayer);
+
+      /* ── 顶层：黑色窗格 ── */
+      const door = document.createElement('div');
+      door.className = 'cell-door';
+      const dnum = document.createElement('span');
+      dnum.className = 'cell-door-num';
+      dnum.textContent = i;
+      door.appendChild(dnum);
+      cell.appendChild(door);
+
+      /* ── 气泡（渲染在 bubble-layer 里，不在格子内部）──
+         位置用格子在网格中的行列计算
+         col = (i-1) % 9,  row = Math.floor((i-1)/9)
+         bubble 横向对齐到格子左边缘
+      */
+      const col = (i - 1) % COLS;
+      const row = Math.floor((i - 1) / COLS);
+      const cellSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 92;
+      const gap = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 2;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'grid-bubble';
+      bubble.textContent = card.bubble;
+      bubble.dataset.i = i;
+      // 左偏移 = 列 * (格子+间距) 
+      cell.appendChild(bubble); 
+      
+      /* 点击事件 */
+      cell.addEventListener('click', () => toggleCell(cell, bubble));
+
+    } else {
+      /* 空格子 */
+      const bg = document.createElement('div');
+      bg.className = 'cell-bg';
+      const num = document.createElement('span');
+      num.className = 'cell-num';
+      num.textContent = i;
+      bg.appendChild(num);
+      cell.appendChild(bg);
+    }
+
+    gridEl.appendChild(cell);
+  }
+
+  /* 开屏/回访时打开格子的逻辑改由 openHomeCells() 统一处理 */
+}
+
+function openCell(cell, bubble) {
+  cell.classList.add('open');
+  openSet.add(cell);
+  if (bubble) setTimeout(() => bubble.classList.add('show'), 380);
+}
+
+/* ✏️ 开屏/回访彩蛋：按"回到主页的次数"累积开窗，且按固定编号开。
+   第1次开 1号(中间主角)，第2次开到 2号，第N次 = 编号 1~N 全开。
+   位置每次回主页随机重排，但"这次新亮的是几号"固定可预期。 */
+let homeVisits = 0;
+function openHomeCells() {
+  homeVisits++;
+  const target = Math.min(homeVisits, DARK_COUNT);
+  document.querySelectorAll('.cell.dark').forEach(c => {
+    const num = +c.dataset.card;
+    if (num <= target) {
+      setTimeout(() => openCell(c, c.querySelector('.grid-bubble')), (num - 1) * 130);  /* 按编号错峰弹出 */
+    }
+  });
+}
+
+function closeCell(cell, bubble) {
+  cell.classList.remove('open');
+  openSet.delete(cell);
+  if (bubble) bubble.classList.remove('show');
+}
+function toggleCell(cell, bubble) {
+  if (cell.classList.contains('open')) closeCell(cell, bubble);
+  else openCell(cell, bubble);
+}
+
+
+/* ══════════════════════════════════════════════════════
+   页面路由
+══════════════════════════════════════════════════════ */
+let curPage = 'home';
+
+function goPage(name) {
+  const prevPage = curPage;   /* ✏️ 记录来源页，用于判断是否"回到主页" */
+  /* 隐藏所有标准页面 */
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  /* 离开案例页时恢复导航栏 */
+  if (name !== 'case') {
+  document.body.classList.remove('case-dark');
+}
+  /* 隐藏案例页 */
+  document.getElementById('page-case').classList.remove('active');
+
+  /* 更新 nav 高亮 */
+  document.querySelectorAll('.nav-mid a').forEach(a => {
+    a.classList.toggle('active', a.dataset.page === name);
+  });
+
+  if (name === 'home') {
+    document.getElementById('page-home').classList.add('active');
+  } else if (name === 'case') {
+    document.getElementById('page-case').classList.add('active');
+  } else {
+    const el = document.getElementById('page-' + name);
+    if (el) el.classList.add('active');
+  }
+  if (name === 'art') initArtGrid();   /* 每次进入 Art 重新随机 */
+  if (name === 'home' && prevPage !== 'home') { buildGrid(); openHomeCells(); }  /* ✏️ 回主页：位置重排 + 按编号累积开窗 */
+  /* ✏️ 各页滚动入场动效（错峰） */
+  requestAnimationFrame(() => {
+    if (name === 'work')  revealSetup([...document.querySelectorAll('#page-work .w-row')], null, 0.05);
+    if (name === 'art')   revealSetup([...document.querySelectorAll('#art-grid .art-cell')], null, 0.05);
+    if (name === 'about') revealSetup([...document.querySelectorAll('#page-about .ab-intro, #page-about .ab-sec')], null, 0.08);
+  });
+  curPage = name;
+  window.scrollTo(0, 0);
+}
+
+
+/* ══════════════════════════════════════════════════════
+   案例详情页渲染
+══════════════════════════════════════════════════════ */
+function openCase(id) {
+  const d = WORKS[id];
+  if (!d) return;
+  
+  /* ← 加这几行：根据 dark 字段切换主题 */
+  const caseEl = document.getElementById('page-case');
+if (d.dark) {
+  caseEl.setAttribute('data-theme', 'dark');
+  document.body.classList.add('case-dark');
+} else {
+  caseEl.removeAttribute('data-theme');
+  document.body.classList.remove('case-dark');
+}
+
+  /* 侧边栏 */
+  document.getElementById('cs-name').textContent = d.name;
+
+  /* TOC */
+  const tocEl = document.getElementById('cs-toc');
+  tocEl.innerHTML = '';
+  d.toc.forEach((item, idx) => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    if (idx === 0) li.classList.add('active-toc');
+    li.onclick = () => {
+      document.querySelectorAll('.cs-toc li').forEach(l => l.classList.remove('active-toc'));
+      li.classList.add('active-toc');
+      /* 滚动到对应 section */
+      const target = document.getElementById('cs-s-' + idx);
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    };
+    // 滚动自动高亮 TOC
+const contentEl = document.getElementById('cs-content');
+
+function updateToc() {
+  const sections = contentEl.querySelectorAll('.cs-sec');
+  const tocItems = document.querySelectorAll('.cs-toc li');
+  
+  let currentIdx = 0;
+  sections.forEach((sec, i) => {
+    // 判断每个 section 是否已经滚动到视口内
+    const rect = sec.getBoundingClientRect();
+    if (rect.top <= 160) {   // 160px 是触发高亮的阈值，可调整
+      currentIdx = i;
+    }
+  });
+
+  tocItems.forEach(l => l.classList.remove('active-toc'));
+  if (tocItems[currentIdx]) tocItems[currentIdx].classList.add('active-toc');
+}
+
+// 监听右侧内容区的滚动
+// 注意：cs-content 是右侧独立滚动区，要监听它而不是 window
+contentEl.removeEventListener('scroll', updateToc); // 防止重复绑定
+contentEl.addEventListener('scroll', updateToc);
+    tocEl.appendChild(li);
+  });
+
+  /* 右侧内容 */
+  let html = '';
+
+  /* Header */
+  html += `<div class="cs-header">
+    <div class="cs-header-row">
+      <div class="cs-title">${d.subtitle}</div>
+      <div class="cs-tags">${d.tags.map(t=>`<span class="cs-tag">${t}</span>`).join('')}</div>
+    </div>
+    <div class="cs-subtitle">${d.desc || d.subtitle}</div>
+  </div>`;
+
+  /* 封面 */
+  if (d.coverImg) {
+    html += `<img class="cs-cover" src="${d.coverImg}" alt="${d.name}">`;
+  } else {
+    html += `<div class="cs-cover-block" style="background:${d.coverBg}">${d.coverEmoji}</div>`;
+  }
+
+  /* Overview */
+  html += `<div class="cs-sec" id="cs-s-0">
+    <div class="cs-sec-label">OVERVIEW</div>
+    <div class="cs-sec-big">${d.title}</div>
+    <div class="cs-note">
+      <div class="cs-note-label">NOTE</div>
+      <div class="cs-note-text">${d.note}</div>
+    </div>
+    <div class="cs-meta">
+      <div><div class="cs-meta-label">ROLE</div><div class="cs-meta-value">${d.meta.role}</div></div>
+      <div><div class="cs-meta-label">SKILLS</div><div class="cs-meta-value">${d.meta.skills.join('<br>')}</div></div>
+      <div><div class="cs-meta-label">DURATION</div><div class="cs-meta-value">${d.meta.duration}</div></div>
+      <div><div class="cs-meta-label">TOOL</div><div class="cs-meta-value">${d.meta.tool}</div></div>
+    </div>`;
+  if (d.productLink) {
+    html += `<div class="cs-plink" onclick="openLink(event,'${d.productLink.url}')" style="cursor:pointer;">
+      <div>
+        <div class="cs-plink-label">${d.productLink.label}</div>
+        <div class="cs-plink-name">${d.productLink.icon} ${d.productLink.name}</div>
+      </div>
+      <div class="cs-plink-arr">↗</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  /* 内容区段 */
+  d.sections.forEach((sec, idx) => {
+    html += `<div class="cs-sec" id="cs-s-${idx+1}">
+      <div class="cs-sec-label">${sec.label}</div>
+      <div class="cs-sec-big">${sec.title}</div>
+      <div class="cs-body">${sec.body}</div>`;
+    // 优先渲染 imgs 数组（多图）
+if (sec.imgs && sec.imgs.length) {
+  sec.imgs.forEach(item => {
+    html += `<img class="cs-img" src="${item.img}" 
+      style="height:${item.imgW ? 'auto' : '480px'};width:100%;
+      object-fit:contain;margin-bottom:16px;" alt="">`;
+  });
+  // ← 加这段：双图并排
+} else if (sec.imgPair) {
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px;">
+    <img src="${sec.imgPair[0]}" style="width:100%;border-radius:10px;object-fit:cover;">
+    <img src="${sec.imgPair[1]}" style="width:100%;border-radius:10px;object-fit:cover;">
+  </div>`;
+
+// ← 加这段：YouTube视频嵌入
+} else if (sec.video) {
+  html += `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;margin-bottom:28px;">
+    <iframe src="${sec.video}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen></iframe>
+  </div>`;
+
+} else if (sec.img) {
+  // 单图保持原来逻辑
+  html += `<img class="cs-img" src="${sec.img}" 
+    style="height:${sec.imgH}px;object-fit:cover;" alt="">`;
+} else {
+  html += `<div class="cs-img-ph" style="height:${sec.imgH}px">${sec.imgEmoji}</div>`;
+}
+    html += `</div>`;
+  });
+
+  document.getElementById('cs-content').innerHTML = html;
+
+  /* 更新 nav 高亮 Work */
+  document.querySelectorAll('.nav-mid a').forEach(a => {
+    a.classList.toggle('active', a.dataset.page === 'work');
+  });
+
+  const _cc = document.getElementById('cs-content');
+  _cc.scrollTop = 0;                 /* 内部滚动复位到顶部 */
+  goPage('case');
+  /* ✏️ 案例页滚动入场：封面 + 各章节渐显上浮（观察根=内部滚动容器）*/
+  requestAnimationFrame(() => {
+    revealSetup([ _cc.querySelector('.cs-cover, .cs-cover-block'),
+                  ..._cc.querySelectorAll('.cs-sec') ], _cc, false);
+  });
+}
+
+
+
+/* ══════════════════════════════════════════════════════
+   Art 页 — 复用作品图片，点击跳转对应 work，每次进入随机排布
+   ✏️ 增删图片：改下面 ART_POOL 即可。work 填作品id则可点击跳转；
+      纯插画不想跳转就把 work 设为 null（则不可点击、无标签）
+══════════════════════════════════════════════════════ */
+const ART_POOL = [
+  /* 8 张作品封面 */
+  { img: 'PNG/work1-cover.png', work: 'work1' },
+  { img: 'PNG/work2-cover.png', work: 'work2' },
+  { img: 'PNG/work3-cover.png', work: 'work3' },
+  { img: 'PNG/work4-cover.png', work: 'work4' },
+  { img: 'PNG/work5-cover.png', work: 'work5' },
+  { img: 'PNG/work6-cover.png', work: 'work6' },
+  { img: 'PNG/work7-cover.png', work: 'work7' },
+  { img: 'PNG/work8-cover.png', work: 'work8' },
+  /* 无文字的纯图片 */
+  { img: 'PNG/work5-06.png', work: 'work5' },
+  { img: 'PNG/work6-05.png', work: 'work6' },
+  { img: 'PNG/work7-12.png', work: 'work7' },
+  { img: 'PNG/work8-07.png', work: 'work8' },
+  { img: 'PNG/work8-12.png', work: 'work8' },
+];
+function _shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* ✏️ 滚动进入动效：给元素加 .reveal，滚动时凡越过触发线的就加 .in。
+   基于位置判定（非 IntersectionObserver），快速/跳跃滚动也不会漏。
+   scroller: 滚动容器（案例页传 cs-content，其它页传 null=窗口）；stagger: 错峰秒数 */
+function revealSetup(els, scroller, stagger){
+  els = els.filter(Boolean);
+  if (!els.length) return;
+  els.forEach((el,i)=>{
+    el.classList.remove('in');
+    el.classList.add('reveal');
+    el.style.transitionDelay = stagger ? (i*stagger)+'s' : '';
+  });
+  const target = scroller || window;
+  function check(){
+    let vTop, vBottom, atEnd;
+    if (scroller){
+      const r = scroller.getBoundingClientRect(); vTop = r.top; vBottom = r.bottom;
+      atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+    } else {
+      vTop = 0; vBottom = window.innerHeight;
+      atEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+    }
+    const line = vBottom;   // 顶边一进入视口即触发，滚到底绝不漏
+    let remaining = false;
+    els.forEach(el=>{
+      if (el.classList.contains('in')) return;
+      if (atEnd || el.getBoundingClientRect().top < line) el.classList.add('in');  // 到底则全显
+      else remaining = true;
+    });
+    if (!remaining) target.removeEventListener('scroll', check);
+  }
+  target.addEventListener('scroll', check, { passive: true });
+  requestAnimationFrame(() => requestAnimationFrame(check));   // 初始检查
+}
+function initArtGrid(){
+  const grid=document.getElementById('art-grid'); if(!grid) return;
+  const pick=_shuffle([...ART_POOL]);   /* 每次进入随机排布，全部展示 */
+  grid.innerHTML=pick.map((it)=>{
+    const nm=(it.work&&WORKS[it.work])?WORKS[it.work].name:'';
+    const click=it.work?`onclick="openCase('${it.work}')"`:'';
+    const lbl=it.work?`<div class="art-lbl">${nm} ↗</div>`:'';
+    return `<div class="art-cell" ${click}>
+      <img src="${it.img}" alt="${nm}">${lbl}</div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   Work 页 — hover 缩略图跟随鼠标
+══════════════════════════════════════════════════════ */
+function initWorkThumb() {
+  const thumb = document.getElementById('w-thumb');
+  const inner = document.getElementById('w-thumb-inner');
+
+  document.querySelectorAll('.w-row').forEach(row => {
+    row.addEventListener('mouseenter', () => {
+      const imgSrc = row.dataset.img;
+  if (imgSrc) {
+    // 有图片时用图片填满
+    inner.innerHTML = `<img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;display:block;">`;
+    thumb.style.background = 'none';
+  } else {
+    // 没有图片时用 emoji + 背景色
+    inner.innerHTML = row.dataset.em || '';
+    thumb.style.background = row.dataset.bg || '#eee';
+  }
+  thumb.classList.add('show');
+});
+    row.addEventListener('mouseleave', () => thumb.classList.remove('show'));
+  });
+  document.addEventListener('mousemove', e => {
+    if (thumb.classList.contains('show')) {
+      thumb.style.left = (e.clientX + 28) + 'px';
+      thumb.style.top  = (e.clientY - 90) + 'px';
+    }
+  });
+}
+
+
+/* ══════════════════════════════════════════════════════
+   自定义光标
+══════════════════════════════════════════════════════ */
+const curEl = document.getElementById('cur');
+document.addEventListener('mousemove', e => {
+  curEl.style.left = e.clientX + 'px';
+  curEl.style.top  = e.clientY + 'px';
+  const t = document.elementFromPoint(e.clientX, e.clientY);
+  const dark = t && t.closest('.cell.dark,.w-row,.skill,.clink,.cs-plink,.art-cell');
+  document.body.classList.toggle('on-dark', !!dark);
+});
+
+
+/* ══════════════════════════════════════════════════════
+   导航滚动效果
+══════════════════════════════════════════════════════ */
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 20);
+});
+
+
+/* ══════════════════════════════════════════════════════
+   微信二维码弹窗
+══════════════════════════════════════════════════════ */
+function openWechat() {
+  document.getElementById('wechat-modal').classList.add('show');
+}
+function closeWechat() {
+  document.getElementById('wechat-modal').classList.remove('show');
+}
+function copyWechat(btn) {
+  const id = document.getElementById('wx-id-text').textContent.trim();
+  const done = () => { const t = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(() => btn.textContent = t, 1600); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(id).then(done).catch(() => fallbackCopy(id, done));
+  } else { fallbackCopy(id, done); }
+}
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); cb && cb(); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+/* ══════════════════════════════════════════════════════
+   ESC 键关闭 / 返回
+══════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const wx = document.getElementById('wechat-modal');
+  if (wx && wx.classList.contains('show')) { closeWechat(); return; }
+  if (curPage === 'case') {
+    goPage('work');
+  } else if (curPage !== 'home') {
+    goPage('home');
+  } else {
+    /* 关闭所有打开的格子 */
+    openSet.forEach(cell => {
+      const bub = cell.querySelector('.grid-bubble');// ← 直接在格子里找
+      closeCell(cell, bub);
+    });
+  }
+});
+
+
+/* ══════════════════════════════════════════════════════
+   初始化
+══════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  buildGrid();
+  initWorkThumb();
+  initArtGrid();
+  setTimeout(openHomeCells, 700);   /* ✏️ 开屏：第1次打开中间主角格 */
+});
+
+</script>
+</body>
+</html>
